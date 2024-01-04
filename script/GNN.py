@@ -3,7 +3,7 @@ from torch_geometric.loader import DataLoader
 
 # 1 load the dataset
 dataset = MoleculeNet(root="data", name="ESOL")
-
+print(dataset)
 print('num_features:',dataset.num_features)
 print('num_classes:',dataset.num_classes)
 print('num_node_features',dataset.num_node_features)
@@ -23,6 +23,9 @@ test_data=dataset[int(data_size*0.8):]
 
 train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_data, batch_size=len(test_data))
+
+print(data_size)
+print(dataset)
 
 # 3 contribution GCN model
 import torch
