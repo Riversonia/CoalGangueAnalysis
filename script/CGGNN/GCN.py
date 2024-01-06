@@ -124,7 +124,10 @@ class GAT(torch.nn.Module): # 创建图注意力网络GAT模型
     h_feats  隐藏层特征
     out_feat 输出特征
     
-    定义了两个卷积层conv1和conv2，每个卷积层有两个注意力头，不使用concat操作
+    定义了两个卷积层conv1和conv2，每个卷积层有4个注意力头，不使用concat操作
+    如果concat参数为False，意味着它们不执行任何操作，仅用于卷积和注意力计算。
+    如果concat参数为True，则将输出注意力权重的通道与原始输入连接起来。
+    这个特性可以帮助更准确地捕获输入的特征，并将其组合起来。
     """
     # concat operation
     """
@@ -145,7 +148,7 @@ class GAT(torch.nn.Module): # 创建图注意力网络GAT模型
     """
 
     def forward(self, x, edge_index):
-        x = F.elu(self.conv1(x, edge_index))
+        x = F.elu(self.conv1(x, edge_index)) # ELU 指数线性单元(Expon)激活函数
         x = self.conv2(x, edge_index)
         return x
     """
@@ -157,39 +160,56 @@ class GAT(torch.nn.Module): # 创建图注意力网络GAT模型
 
 # 3.2 搭建时间序列预测模型
 class GAT_MLP(nn.Module):
-    def __init__(self, args, graph):
-        super(GAT_MLP, self).__init__()
-        self.args = args
-        self.out_feats = 128
-        self.edge_index = graph.edge_index
+    def __init__(self, args, graph): # 构造函数
+        super(GAT_MLP, self).__init__() # 调用基类的构造函数，初始化
+        self.args = args        # 保存传递来给模型的参数
+        self.out_feats = 128    # 定义模型输出特征为128
+        self.edge_index = graph.edge_index  # 保存传递来的图的边索引信息
         self.gat = GAT(in_feats=args.seq_len, h_feats=64, out_feats=self.out_feats)
-        self.fcs = nn.ModuleList()
-        self.graph = graph
-        for k in range(args.input_size):
-            self.fcs.append(nn.Sequential(
+            # 通过之前搭建好的GAT模型来捕获传递来的图的特征，传入相关参数
+        self.fcs = nn.ModuleList()  # 创建了一个nn.ModuleList() 的对象，用于存储多个神经网络层
+        self.graph = graph  # 创建一个图对象，用于存储传递来的图对象
+        for k in range(args.input_size):    # 遍历传参中input_size大小的次数
+            self.fcs.append(nn.Sequential(  # 每次添加(append)一个nn.Sequential对象到名称为fcs的nn.Modulelist中
                 nn.Linear(128, 64),
                 nn.ReLU(),
                 nn.Linear(64, args.output_size)
             ))
-
-    def forward(self, x):
+        # nn.Sequential模块
+        """
+        nn.Sequential是PyTorch中的一个模块，它允许你按照顺序堆叠多个模块，形成一个更复杂的模块。
+        这个模块中包含了一个线性层（nn.Linear），一个ReLU激活函数（nn.ReLU），然后再是一个线性层（nn.Linear）。
+        输入大小为128，输出大小为传入参数中的output_size大小。
+        """
+    def forward(self, x): # GCN的前向传播过程(forward pass)，使用了GAT(Attention)机制和FC(Fully Connected)层
         # x(batch_size, seq_len, input_size)
-        x = x.permute(0, 2, 1)
+        x = x.permute(0, 2, 1) # 改变了输入数据的维度顺序，方便卷积操作 第一维保持不变，第二维放到第三位，第三维放到第二位
+
         # 1.gat
-        # (batch_size, input_size, out_feats)
+        # x(batch_size, input_size, out_feats)
         out = torch.zeros(x.shape[0], x.shape[1], self.out_feats).to(device)
+        # 创建一个新的输出张量out，其形状与输入x相同，但所有元素都是零。这个张量用于存储经过网络处理后的结果。
+        # x.shape0和x.shape1定义了新张量out的形状，且全部为0
+        # self.out_feats 代表每个张量的特征的数量
+        # .to(device) 代表将这个张量转移到指定的设备（device）上
+
         for k in range(x.shape[0]):
             self.graph.x = x[k, :, :]
             out[k, :, :] = self.gat(x[k, :, :], self.edge_index)
+
+        """
+        使用循环对每个输入x[k]执行GAT层和FC层的操作。
+        self.graph.x保存当前输入x[k]，self.edge_index表示图的边索引，这两个参数是用于GAT层的关键。
+        """
         preds = []
         # print(out.shape)  # 256 13 128
-        for k in range(out.shape[1]):
+        for k in range(out.shape[1]): # 使用循环对每个输出通道执行FC层，并将结果添加到preds列表中。
             preds.append(self.fcs[k](out[:, k, :]))
 
-        pred = torch.stack(preds, dim=0)
+        pred = torch.stack(preds, dim=0) # 最后，使用torch.stack(preds, dim=0)将所有通道的结果堆叠在一起，得到最终的预测结果。
         # print(pred.shape)
 
-        return pred
+        return pred #返回预测结果
 
 
 
