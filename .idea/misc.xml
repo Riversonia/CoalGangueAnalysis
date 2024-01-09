@@ -5,5 +5,5 @@
     <option name="pathToExecutable" value="C:\Users\DELL\anaconda3\Scripts\black.exe" />
     <option name="sdkName" value="DGL" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="pytorch" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="DGL" project-jdk-type="Python SDK" />
 </project>
